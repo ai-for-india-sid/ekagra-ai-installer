@@ -3,15 +3,15 @@
 # pull-mac.sh — Daily update script for Ekagra AI (macOS)
 #
 # Called automatically by launchd every day at 11:30am.
-# Pulls the latest changes from the private Ekagra AI repository into ~/ekagra-ai
-# and appends a timestamped record to ~/ekagra-ai/logs/pull.log.
+# Pulls the latest changes from the private Ekagra AI repository into ~/Ek-ai
+# and appends a timestamped record to ~/Ek-ai/logs/pull.log.
 #
 # This script is intentionally self-contained: no user interaction, no network calls
 # beyond the git pull itself. It is safe to run repeatedly and silently.
 
 # --- Configuration ----------------------------------------------------------
 # The local clone of the Ekagra AI repository (created by install-mac.sh).
-REPO_DIR="$HOME/ekagra-ai"
+REPO_DIR="$HOME/Ek-ai"
 # Where we keep a human-readable record of every pull attempt.
 LOG_FILE="$REPO_DIR/logs/pull.log"
 # Cap the log file at this many lines so it never grows without bound.

@@ -8,7 +8,7 @@
 #   3. Wires up an SSH config alias so git uses that key automatically
 #   4. Hands the public key to the user to send to their Ekagra contact, who
 #      registers it as a read-only deploy key on the private repo
-#   5. Clones the repo into ~/ekagra-ai
+#   5. Clones the repo into ~/Ek-ai
 #   6. Installs a daily pull script
 #   7. Schedules an automatic update every day at 11:30am via launchd
 #
@@ -27,7 +27,7 @@ SSH_KEY_PATH="$HOME/.ssh/ekagra_deploy"
 # The repo to clone, referenced via the SSH alias so the right key is used.
 REPO_URL="git@${SSH_HOST_ALIAS}:ai-for-india-sid/d2c-ai-buddy.git"
 # Where the repo lands on the user's machine.
-INSTALL_DIR="$HOME/ekagra-ai"
+INSTALL_DIR="$HOME/Ek-ai"
 # The launchd plist that runs the daily pull.
 PLIST_PATH="$HOME/Library/LaunchAgents/ai.ekagra.daily-pull.plist"
 PLIST_LABEL="ai.ekagra.daily-pull"
@@ -149,7 +149,7 @@ else
   # Fallback: write the pull script directly. Kept in sync with scripts/pull-mac.sh.
   cat > "$PULL_SCRIPT" <<'PULL_EOF'
 #!/bin/bash
-REPO_DIR="$HOME/ekagra-ai"
+REPO_DIR="$HOME/Ek-ai"
 LOG_FILE="$REPO_DIR/logs/pull.log"
 MAX_LOG_LINES=500
 
@@ -189,7 +189,7 @@ cat > "$PLIST_PATH" <<EOF
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>${HOME_ABS}/ekagra-ai/scripts/pull-mac.sh</string>
+    <string>${HOME_ABS}/Ek-ai/scripts/pull-mac.sh</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
@@ -199,9 +199,9 @@ cat > "$PLIST_PATH" <<EOF
     <integer>30</integer>
   </dict>
   <key>StandardOutPath</key>
-  <string>${HOME_ABS}/ekagra-ai/logs/launchd.log</string>
+  <string>${HOME_ABS}/Ek-ai/logs/launchd.log</string>
   <key>StandardErrorPath</key>
-  <string>${HOME_ABS}/ekagra-ai/logs/launchd.log</string>
+  <string>${HOME_ABS}/Ek-ai/logs/launchd.log</string>
   <!-- Run on login/restart too, so a pull missed while the Mac was off or asleep
        overnight is caught up as soon as the user logs back in. launchd does not
        reliably re-fire a missed StartCalendarInterval event on wake from sleep,
@@ -229,7 +229,7 @@ cat <<'MSG'
 ─────────────────────────────────────────────
 ✓ Setup complete. Ekagra AI is ready.
 
-Your skills are in: ~/ekagra-ai
+Your skills are in: ~/Ek-ai
 Updates download automatically every morning at 11:30am.
 You don't need to do anything else.
 ─────────────────────────────────────────────

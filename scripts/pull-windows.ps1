@@ -5,8 +5,8 @@
 .DESCRIPTION
     Called automatically by Windows Task Scheduler every day at 11:30am.
     Pulls the latest changes from the private Ekagra AI repository into
-    %USERPROFILE%\ekagra-ai and appends a timestamped record to
-    %USERPROFILE%\ekagra-ai\logs\pull.log.
+    %USERPROFILE%\Ek-ai and appends a timestamped record to
+    %USERPROFILE%\Ek-ai\logs\pull.log.
 
     Self-contained: no user interaction, no network calls beyond the git pull.
     Safe to run repeatedly and silently.
@@ -14,7 +14,7 @@
 
 # --- Configuration ----------------------------------------------------------
 # The local clone of the Ekagra AI repository (created by install-windows.ps1).
-$repoDir = "$env:USERPROFILE\ekagra-ai"
+$repoDir = "$env:USERPROFILE\Ek-ai"
 # Where we keep a human-readable record of every pull attempt.
 $logFile = "$repoDir\logs\pull.log"
 # Cap the log file at this many lines so it never grows without bound.

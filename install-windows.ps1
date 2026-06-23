@@ -9,7 +9,7 @@
       3. Wires up an SSH config alias so git uses that key automatically
       4. Hands the public key to the user to send to their Ekagra contact, who
          registers it as a read-only deploy key on the private repo
-      5. Clones the repo into %USERPROFILE%\ekagra-ai
+      5. Clones the repo into %USERPROFILE%\Ek-ai
       6. Installs a daily pull script
       7. Schedules an automatic update every day at 11:30am via Task Scheduler
 
@@ -31,7 +31,7 @@ $configFile   = "$sshDir\config"
 # The repo to clone, referenced via the SSH alias so the right key is used.
 $repoUrl      = "git@${sshHostAlias}:ai-for-india-sid/d2c-ai-buddy.git"
 # Where the repo lands on the user's machine.
-$installDir   = "$env:USERPROFILE\ekagra-ai"
+$installDir   = "$env:USERPROFILE\Ek-ai"
 # Name of the scheduled task that runs the daily pull.
 $taskName     = "ekagra-ai Daily Pull"
 
@@ -148,7 +148,7 @@ if (Test-Path $scriptSource) {
 } else {
     # Fallback: write the pull script directly. Kept in sync with scripts/pull-windows.ps1.
     $pullBody = @'
-$repoDir = "$env:USERPROFILE\ekagra-ai"
+$repoDir = "$env:USERPROFILE\Ek-ai"
 $logFile = "$repoDir\logs\pull.log"
 $maxLines = 500
 
@@ -204,7 +204,7 @@ Write-Host ""
 Write-Host "─────────────────────────────────────────────"
 Write-Host "✓ Setup complete. Ekagra AI is ready."
 Write-Host ""
-Write-Host "Your skills are in: %USERPROFILE%\ekagra-ai"
+Write-Host "Your skills are in: %USERPROFILE%\Ek-ai"
 Write-Host "Updates download automatically every morning at 11:30am."
 Write-Host "You don't need to do anything else."
 Write-Host "─────────────────────────────────────────────"

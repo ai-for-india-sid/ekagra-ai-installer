@@ -42,10 +42,10 @@ ekagra-ai-installer/
 
 | File | What it does |
 |------|--------------|
-| `install-mac.sh` | One-time Mac setup: checks git, generates an SSH key, wires up SSH config, prompts the user to send their key to Ekagra, clones the repo into `~/ekagra-ai`, installs the daily pull script, and registers a launchd job for 11:30am. |
+| `install-mac.sh` | One-time Mac setup: checks git, generates an SSH key, wires up SSH config, prompts the user to send their key to Ekagra, clones the repo into `~/Ek-ai`, installs the daily pull script, and registers a launchd job for 11:30am. |
 | `install-windows.ps1` | Same flow for Windows, using Task Scheduler instead of launchd. |
-| `scripts/pull-mac.sh` | Runs daily via launchd. Does a `git pull`, appends a timestamped line to `~/ekagra-ai/logs/pull.log`, and rotates the log to its last 500 lines. No user interaction. |
-| `scripts/pull-windows.ps1` | Windows equivalent of the above. Writes to `%USERPROFILE%\ekagra-ai\logs\pull.log`. |
+| `scripts/pull-mac.sh` | Runs daily via launchd. Does a `git pull`, appends a timestamped line to `~/Ek-ai/logs/pull.log`, and rotates the log to its last 500 lines. No user interaction. |
+| `scripts/pull-windows.ps1` | Windows equivalent of the above. Writes to `%USERPROFILE%\Ek-ai\logs\pull.log`. |
 
 Both install scripts are **idempotent** — safe to re-run. They will not create a
 second SSH key, duplicate SSH config block, duplicate scheduled job, or a second
@@ -129,12 +129,12 @@ After a user finishes install, ask them to share the contents of their pull log.
 
 **Mac:**
 ```bash
-cat ~/ekagra-ai/logs/pull.log
+cat ~/Ek-ai/logs/pull.log
 ```
 
 **Windows:**
 ```powershell
-Get-Content "$env:USERPROFILE\ekagra-ai\logs\pull.log"
+Get-Content "$env:USERPROFILE\Ek-ai\logs\pull.log"
 ```
 
 A healthy log looks like:
@@ -152,12 +152,12 @@ If you see `Pull failed`, the most common cause is the deploy key wasn't added
 
 **Mac:**
 ```bash
-bash ~/ekagra-ai/scripts/pull-mac.sh
+bash ~/Ek-ai/scripts/pull-mac.sh
 ```
 
 **Windows:**
 ```powershell
-& "$env:USERPROFILE\ekagra-ai\scripts\pull-windows.ps1"
+& "$env:USERPROFILE\Ek-ai\scripts\pull-windows.ps1"
 ```
 
 Then re-check the log as above.
@@ -175,12 +175,12 @@ bash install-mac.sh
 # 2. When it pauses, add the key it copied to your clipboard as a deploy key
 #    on d2c-ai-buddy (see per-user step above), then press Enter.
 # 3. Verify the clone landed:
-ls ~/ekagra-ai
+ls ~/Ek-ai
 # 4. Verify the schedule is registered:
 launchctl list | grep ekagra
 # 5. Trigger a manual pull and check the log:
-bash ~/ekagra-ai/scripts/pull-mac.sh
-cat ~/ekagra-ai/logs/pull.log
+bash ~/Ek-ai/scripts/pull-mac.sh
+cat ~/Ek-ai/logs/pull.log
 ```
 
 **Windows:**
@@ -189,12 +189,12 @@ cat ~/ekagra-ai/logs/pull.log
 .\install-windows.ps1
 # 2. When it pauses, add the deploy key, then press Enter.
 # 3. Verify the clone:
-Get-ChildItem "$env:USERPROFILE\ekagra-ai"
+Get-ChildItem "$env:USERPROFILE\Ek-ai"
 # 4. Verify the scheduled task exists:
 Get-ScheduledTask -TaskName "ekagra-ai Daily Pull"
 # 5. Trigger a manual pull and check the log:
-& "$env:USERPROFILE\ekagra-ai\scripts\pull-windows.ps1"
-Get-Content "$env:USERPROFILE\ekagra-ai\logs\pull.log"
+& "$env:USERPROFILE\Ek-ai\scripts\pull-windows.ps1"
+Get-Content "$env:USERPROFILE\Ek-ai\logs\pull.log"
 ```
 
 To **uninstall** (useful while testing):
@@ -202,14 +202,14 @@ To **uninstall** (useful while testing):
 # Mac
 launchctl unload ~/Library/LaunchAgents/ai.ekagra.daily-pull.plist
 rm ~/Library/LaunchAgents/ai.ekagra.daily-pull.plist
-rm -rf ~/ekagra-ai
+rm -rf ~/Ek-ai
 rm -f ~/.ssh/ekagra_deploy ~/.ssh/ekagra_deploy.pub
 # (also remove the ekagra-github block from ~/.ssh/config)
 ```
 ```powershell
 # Windows
 Unregister-ScheduledTask -TaskName "ekagra-ai Daily Pull" -Confirm:$false
-Remove-Item -Recurse -Force "$env:USERPROFILE\ekagra-ai"
+Remove-Item -Recurse -Force "$env:USERPROFILE\Ek-ai"
 Remove-Item -Force "$env:USERPROFILE\.ssh\ekagra_deploy", "$env:USERPROFILE\.ssh\ekagra_deploy.pub"
 # (also remove the ekagra-github block from %USERPROFILE%\.ssh\config)
 ```
