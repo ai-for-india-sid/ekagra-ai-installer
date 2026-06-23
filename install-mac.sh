@@ -196,6 +196,10 @@ ok "Daily pull script installed"
 # launchd does NOT expand ~ or $HOME at runtime, so we bake the absolute path in.
 HOME_ABS="$HOME"
 
+# Make sure the LaunchAgents directory exists. macOS does NOT guarantee this on
+# fresh installs / new user accounts — without it the plist write below fails.
+mkdir -p "$HOME/Library/LaunchAgents"
+
 cat > "$PLIST_PATH" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
