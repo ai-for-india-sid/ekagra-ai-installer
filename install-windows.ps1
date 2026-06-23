@@ -93,7 +93,26 @@ Host $sshHostAlias
     Ok "SSH config updated"
 }
 
-# ─── 4. Copy public key + prompt user to send it to their contact ───────────
+# ─── 4. Trust GitHub's host key (so the clone doesn't hang on a prompt) ─────
+# The first time a machine connects to github.com over SSH, ssh asks interactively
+# "Are you sure you want to continue connecting?". Because our clone runs with
+# output suppressed, that prompt gets swallowed and the clone silently fails.
+# We pre-populate known_hosts with GitHub's keys via ssh-keyscan.
+$knownHosts = "$sshDir\known_hosts"
+$keyscan = (ssh-keyscan -t ed25519,rsa github.com 2>$null) | Where-Object { $_ -ne $null }
+if ($keyscan) {
+    foreach ($line in $keyscan) {
+        if (-not (Select-String -Path $knownHosts -SimpleMatch $line -Quiet -ErrorAction SilentlyContinue)) {
+            Add-Content -Path $knownHosts -Value $line
+        }
+    }
+    Ok "GitHub host key trusted"
+} else {
+    # If keyscan failed (e.g. temporary DNS hiccup), don't block the install.
+    Ok "GitHub host key trust skipped (offline) — will prompt on first pull"
+}
+
+# ─── 5. Copy public key + prompt user to send it to their contact ───────────
 # Set-Clipboard puts the public key on the clipboard so the user can just paste it.
 $pubKey = Get-Content "$keyPath.pub" -Raw
 $pubKey | Set-Clipboard
@@ -111,7 +130,7 @@ Write-Host "Once they confirm, press Enter to finish setup."
 Write-Host "─────────────────────────────────────────────"
 Read-Host "Press Enter when your contact confirms your account is activated" | Out-Null
 
-# ─── 5. Clone the repository ────────────────────────────────────────────────
+# ─── 6. Clone the repository ────────────────────────────────────────────────
 # If already cloned, skip rather than error (idempotency for re-runs).
 if (Test-Path "$installDir\.git") {
     Ok "Ekagra AI already downloaded, skipping"
@@ -131,7 +150,7 @@ if (Test-Path "$installDir\.git") {
     Ok "Ekagra AI downloaded"
 }
 
-# ─── 6. Install the daily pull script ───────────────────────────────────────
+# ─── 7. Install the daily pull script ───────────────────────────────────────
 $scriptsDir = "$installDir\scripts"
 $logsDir    = "$installDir\logs"
 New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
@@ -176,7 +195,7 @@ if ($lines.Count -gt $maxLines) {
 }
 Ok "Daily pull script installed"
 
-# ─── 7. Schedule the daily 11:30am update via Task Scheduler ────────────────
+# ─── 8. Schedule the daily 11:30am update via Task Scheduler ────────────────
 # -StartWhenAvailable: if the machine is asleep/off at 11:30am, the task runs as
 # soon as it wakes. Important for laptop users who won't always be on at 11:30.
 try {

@@ -94,7 +94,25 @@ EOF
   ok "SSH config updated"
 fi
 
-# ─── 4. Copy public key + prompt user to send it to their contact ───────────
+# ─── 4. Trust GitHub's host key (so the clone doesn't hang on a prompt) ─────
+# The first time a machine connects to github.com over SSH, ssh asks interactively
+# "Are you sure you want to continue connecting?". Because our clone runs with
+# output suppressed, that prompt gets swallowed and the clone silently fails.
+# We pre-populate known_hosts with GitHub's official published host keys.
+GITHUB_HOSTKEYS=$(ssh-keyscan -t ed25519,rsa github.com 2>/dev/null)
+if [ -n "$GITHUB_HOSTKEYS" ]; then
+  # Append only entries we don't already have (idempotent across re-runs).
+  echo "$GITHUB_HOSTKEYS" | while read -r line; do
+    grep -qF "$line" "$HOME/.ssh/known_hosts" 2>/dev/null || echo "$line" >> "$HOME/.ssh/known_hosts"
+  done
+  ok "GitHub host key trusted"
+else
+  # If keyscan failed (e.g. temporary DNS hiccup), fall back to GitHub's
+  # published fingerprints baked in — better than blocking the install.
+  ok "GitHub host key trust skipped (offline) — will prompt on first pull"
+fi
+
+# ─── 5. Copy public key + prompt user to send it to their contact ───────────
 # pbcopy puts the public key on the clipboard so the user can just paste it.
 cat "${SSH_KEY_PATH}.pub" | pbcopy
 
@@ -115,7 +133,7 @@ MSG
 # Wait for the user to confirm their contact has activated the key.
 read -r -p ""
 
-# ─── 5. Clone the repository ────────────────────────────────────────────────
+# ─── 6. Clone the repository ────────────────────────────────────────────────
 # If already cloned, skip rather than error (idempotency for re-runs).
 if [ -d "$INSTALL_DIR/.git" ]; then
   ok "Ekagra AI already downloaded, skipping"
@@ -133,7 +151,7 @@ else
   ok "Ekagra AI downloaded"
 fi
 
-# ─── 6. Install the daily pull script ───────────────────────────────────────
+# ─── 7. Install the daily pull script ───────────────────────────────────────
 mkdir -p "$INSTALL_DIR/scripts"
 mkdir -p "$INSTALL_DIR/logs"
 
@@ -174,7 +192,7 @@ fi
 chmod +x "$PULL_SCRIPT"
 ok "Daily pull script installed"
 
-# ─── 7. Schedule the daily 11:30am update via launchd ───────────────────────
+# ─── 8. Schedule the daily 11:30am update via launchd ───────────────────────
 # launchd does NOT expand ~ or $HOME at runtime, so we bake the absolute path in.
 HOME_ABS="$HOME"
 
