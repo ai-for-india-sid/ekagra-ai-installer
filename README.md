@@ -61,14 +61,14 @@ clone.
 ### Mac (Terminal)
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/sidjainn/ekagra-ai-installer/main/install-mac.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/ai-for-india-sid/ekagra-ai-installer/main/install-mac.sh)"
 ```
 
 ### Windows (PowerShell — right-click → "Run as Administrator" not required)
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force; `
-irm https://raw.githubusercontent.com/sidjainn/ekagra-ai-installer/main/install-windows.ps1 | iex
+irm https://raw.githubusercontent.com/ai-for-india-sid/ekagra-ai-installer/main/install-windows.ps1 | iex
 ```
 
 The installer pauses halfway and tells the user to send you their key. **That's
@@ -115,11 +115,11 @@ To update an installer:
    (GitHub's raw endpoint serves the latest `main` content within seconds).
 
 > The raw URL format is:
-> `https://raw.githubusercontent.com/sidjainn/ekagra-ai-installer/main/<filename>`
+> `https://raw.githubusercontent.com/ai-for-india-sid/ekagra-ai-installer/main/<filename>`
 >
 > If you ever want a **pinned, immutable** version (so an installer can't change
 > under you), use a commit SHA or git tag instead of `main`:
-> `https://raw.githubusercontent.com/sidjainn/ekagra-ai-installer/<SHA>/install-mac.sh`
+> `https://raw.githubusercontent.com/ai-for-india-sid/ekagra-ai-installer/<SHA>/install-mac.sh`
 
 ---
 

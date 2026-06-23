@@ -24,6 +24,11 @@ if [ ! -d "$REPO_DIR" ]; then
   exit 1
 fi
 
+# Ensure the logs directory exists. The installer creates it, but if a user
+# (or cleanup tool) deletes it, our appends below would silently fail with no
+# record to diagnose from. Self-heal rather than trust prior state.
+mkdir -p "$(dirname "$LOG_FILE")"
+
 # Move into the repo so `git pull` operates on the right place.
 cd "$REPO_DIR" || exit 1
 

@@ -28,6 +28,14 @@ if (-not (Test-Path $repoDir)) {
     exit 1
 }
 
+# Ensure the logs directory exists. The installer creates it, but if a user
+# (or cleanup tool) deletes it, our writes below would silently fail with no
+# record to diagnose from. Self-heal rather than trust prior state.
+$logDir = Split-Path $logFile -Parent
+if (-not (Test-Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+
 # Move into the repo so `git pull` operates on the right place.
 Set-Location $repoDir
 
