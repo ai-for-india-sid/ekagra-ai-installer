@@ -25,7 +25,7 @@ SSH_HOST_ALIAS="ekagra-github"
 # Where the dedicated Ekagra SSH key lives.
 SSH_KEY_PATH="$HOME/.ssh/ekagra_deploy"
 # The repo to clone, referenced via the SSH alias so the right key is used.
-REPO_URL="git@${SSH_HOST_ALIAS}:ai-for-india-sid/d2c-ai-buddy.git"
+REPO_URL="git@${SSH_HOST_ALIAS}:ai-for-india-sid/ekagra-ai.git"
 # Where the repo lands on the user's machine.
 INSTALL_DIR="$HOME/Ek-ai"
 # The launchd plist that runs the daily pull.

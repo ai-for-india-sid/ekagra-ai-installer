@@ -6,7 +6,7 @@ knowledge required** on their end. After setup, their machine pulls fresh
 content automatically every morning at 11:30am.
 
 This repo holds the installer. The actual product lives in
-[`ai-for-india-sid/d2c-ai-buddy`](https://github.com/ai-for-india-sid/d2c-ai-buddy)
+[`ai-for-india-sid/ekagra-ai`](https://github.com/ai-for-india-sid/ekagra-ai)
 and is pulled onto the user's machine at install time.
 
 ---
@@ -83,7 +83,7 @@ Every new user sends you a public key (looks like
 `ssh-ed25519 AAAAC3N... ekagra-ai-deploy`). You must register it on the private
 repo before their install can finish.
 
-1. Go to **https://github.com/ai-for-india-sid/d2c-ai-buddy/settings/keys**
+1. Go to **https://github.com/ai-for-india-sid/ekagra-ai/settings/keys**
    (repo → **Settings** → **Deploy keys**).
 2. Click **Add deploy key**.
 3. **Title:** the user's name (e.g. `Riya — MacBook`), so you can identify it later.
@@ -173,7 +173,7 @@ You can dry-run the full flow on your own machine without affecting a real user.
 # 1. Run the installer from this repo
 bash install-mac.sh
 # 2. When it pauses, add the key it copied to your clipboard as a deploy key
-#    on d2c-ai-buddy (see per-user step above), then press Enter.
+#    on ekagra-ai (see per-user step above), then press Enter.
 # 3. Verify the clone landed:
 ls ~/Ek-ai
 # 4. Verify the schedule is registered:

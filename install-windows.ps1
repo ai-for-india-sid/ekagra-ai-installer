@@ -29,7 +29,7 @@ $sshDir       = "$env:USERPROFILE\.ssh"
 $keyPath      = "$sshDir\ekagra_deploy"
 $configFile   = "$sshDir\config"
 # The repo to clone, referenced via the SSH alias so the right key is used.
-$repoUrl      = "git@${sshHostAlias}:ai-for-india-sid/d2c-ai-buddy.git"
+$repoUrl      = "git@${sshHostAlias}:ai-for-india-sid/ekagra-ai.git"
 # Where the repo lands on the user's machine.
 $installDir   = "$env:USERPROFILE\Ek-ai"
 # Name of the scheduled task that runs the daily pull.
