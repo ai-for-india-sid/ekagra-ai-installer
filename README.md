@@ -16,8 +16,11 @@ and is pulled onto the user's machine at install time.
 1. The user runs a one-line install command (Mac or Windows).
 2. The script generates a dedicated **SSH key** on their machine and copies the
    public half to their clipboard.
-3. The user pastes that key into WhatsApp/email and sends it to their Ekagra
-   contact (Sid).
+3. If a contact WhatsApp number is configured (see
+   [Configuring the WhatsApp contact](#configuring-the-whatsapp-contact--maintainers)),
+   the script **opens WhatsApp pre-filled with the key** — the user just taps
+   Send. Otherwise (or if WhatsApp can't open) they paste the key from their
+   clipboard into WhatsApp/email and send it to their Ekagra contact (Sid).
 4. **Sid adds it as a read-only deploy key** on the private repo (see
    [Per-user manual step](#per-user-manual-step--sid-only)).
 5. The user presses Enter; the script clones the repo and schedules a daily
@@ -98,6 +101,25 @@ affects only that one machine.
 > configs. This repo uses one key per user, which GitHub supports. If you ever
 > hit a limit, switch to a **machine user** account — see
 > [Troubleshooting](#troubleshooting).
+
+---
+
+## Configuring the WhatsApp contact — maintainers
+
+To turn the manual "paste your key into WhatsApp" step into a one-tap deep link,
+set the contact's WhatsApp number once at the top of each installer:
+
+- `install-mac.sh` → `WHATSAPP_CONTACT="..."`
+- `install-windows.ps1` → `$whatsappContact = "..."`
+
+Use **international format, digits only** — no `+`, spaces, or dashes. For
+`+91 98765 43210` you'd set `919876543210`.
+
+When set, the installer builds a [`wa.me`](https://wa.me) deep link with the
+user's key pre-filled as the message and opens it (WhatsApp app if installed,
+otherwise WhatsApp Web). The key is still copied to the clipboard as a fallback,
+so leaving the variable **empty** simply reverts to the original "copy and paste
+manually" prompt — nothing breaks before a number is chosen.
 
 ---
 

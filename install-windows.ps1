@@ -34,6 +34,12 @@ $repoUrl      = "git@${sshHostAlias}:ai-for-india-sid/ekagra-ai.git"
 $installDir   = "$env:USERPROFILE\Ek-ai"
 # Name of the scheduled task that runs the daily pull.
 $taskName     = "ekagra-ai Daily Pull"
+# WhatsApp number of the Ekagra AI contact who activates new users, in
+# international format with digits only — no "+", spaces, or dashes
+# (e.g. 919876543210 for +91 98765 43210). When set, the installer opens
+# WhatsApp pre-filled with the user's key so they can send it in one tap.
+# Leave empty to fall back to the "copy to clipboard, paste manually" prompt.
+$whatsappContact = ""
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 function Ok   { param($msg) Write-Host "✓ $msg" }
@@ -112,19 +118,42 @@ if ($keyscan) {
     Ok "GitHub host key trust skipped (offline) — will prompt on first pull"
 }
 
-# ─── 5. Copy public key + prompt user to send it to their contact ───────────
-# Set-Clipboard puts the public key on the clipboard so the user can just paste it.
-$pubKey = Get-Content "$keyPath.pub" -Raw
+# ─── 5. Hand the public key to the user to send to their contact ────────────
+# Always copy to the clipboard first — it's the reliable fallback no matter what
+# happens with the deep link below.
+$pubKey = (Get-Content "$keyPath.pub" -Raw).Trim()
 $pubKey | Set-Clipboard
 
 Write-Host ""
 Write-Host "─────────────────────────────────────────────"
 Write-Host "ACTION REQUIRED — takes 2 minutes"
 Write-Host ""
-Write-Host "Your setup key has been copied to your clipboard."
-Write-Host ""
-Write-Host "Please WhatsApp or email it to your Ekagra AI contact now."
-Write-Host "They will activate your account and reply when you're ready to continue."
+if ($whatsappContact) {
+    # Build a wa.me deep link with the key pre-filled as the message body, then
+    # open it. Windows hands the link to the WhatsApp app if installed,
+    # otherwise WhatsApp Web in the browser — either way the key is already
+    # typed in and the user just clicks Send. No hunting for the right contact,
+    # no manual paste.
+    $message = "Hi! Here is my Ekagra AI setup key:`n`n$pubKey"
+    $encoded = [uri]::EscapeDataString($message)
+    $whatsappUrl = "https://wa.me/$whatsappContact" + "?text=$encoded"
+
+    Write-Host "Opening WhatsApp with your setup key already filled in."
+    Write-Host "Just press Send to deliver it to your Ekagra AI contact."
+    Write-Host ""
+    Write-Host "(Your key is also copied to your clipboard as a backup.)"
+    Write-Host ""
+    Write-Host "They will activate your account and reply when you're ready to continue."
+    # Start-Process opens the link in the default handler (WhatsApp app or
+    # browser). If it fails, the clipboard copy above still lets the user paste
+    # manually, so don't let a failure stop the install.
+    try { Start-Process $whatsappUrl } catch { }
+} else {
+    Write-Host "Your setup key has been copied to your clipboard."
+    Write-Host ""
+    Write-Host "Please WhatsApp or email it to your Ekagra AI contact now."
+    Write-Host "They will activate your account and reply when you're ready to continue."
+}
 Write-Host ""
 Write-Host "Once they confirm, press Enter to finish setup."
 Write-Host "─────────────────────────────────────────────"

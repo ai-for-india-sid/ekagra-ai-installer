@@ -31,12 +31,32 @@ INSTALL_DIR="$HOME/Ek-ai"
 # The launchd plist that runs the daily pull.
 PLIST_PATH="$HOME/Library/LaunchAgents/ai.ekagra.daily-pull.plist"
 PLIST_LABEL="ai.ekagra.daily-pull"
+# WhatsApp number of the Ekagra AI contact who activates new users, in
+# international format with digits only — no "+", spaces, or dashes
+# (e.g. 919876543210 for +91 98765 43210). When set, the installer opens
+# WhatsApp pre-filled with the user's key so they can send it in one tap.
+# Leave empty to fall back to the "copy to clipboard, paste manually" prompt.
+WHATSAPP_CONTACT=""
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 # Print a step-complete line so the user gets visible progress.
 ok()   { echo "✓ $1"; }
 # Print a friendly, non-technical error and stop.
 fail() { echo "✗ $1"; exit 1; }
+# URL-encode a string so it can be dropped into a wa.me deep link. Pure bash
+# (no python/perl) to honour the "bash only" design constraint. Encodes
+# everything except the RFC 3986 unreserved set, so spaces, "+", "/", "=" and
+# newlines in the SSH key all survive the round trip.
+urlencode() {
+  local string="$1" i c
+  for (( i = 0; i < ${#string}; i++ )); do
+    c="${string:i:1}"
+    case "$c" in
+      [a-zA-Z0-9.~_-]) printf '%s' "$c" ;;
+      *)               printf '%%%02X' "'$c" ;;
+    esac
+  done
+}
 
 echo "Welcome to Ekagra AI Setup"
 echo "This will take about a minute. Please don't close this window."
@@ -112,11 +132,42 @@ else
   ok "GitHub host key trust skipped (offline) — will prompt on first pull"
 fi
 
-# ─── 5. Copy public key + prompt user to send it to their contact ───────────
-# pbcopy puts the public key on the clipboard so the user can just paste it.
-cat "${SSH_KEY_PATH}.pub" | pbcopy
+# ─── 5. Hand the public key to the user to send to their contact ────────────
+# Always copy to the clipboard first — it's the reliable fallback no matter what
+# happens with the deep link below.
+PUBLIC_KEY="$(cat "${SSH_KEY_PATH}.pub")"
+printf '%s' "$PUBLIC_KEY" | pbcopy
 
-cat <<'MSG'
+if [ -n "$WHATSAPP_CONTACT" ]; then
+  # Build a wa.me deep link with the key pre-filled as the message body, then
+  # open it. macOS hands the link to the WhatsApp app if installed, otherwise
+  # WhatsApp Web in the browser — either way the key is already typed in and the
+  # user just taps Send. No hunting for the right contact, no manual paste.
+  MESSAGE="Hi! Here is my Ekagra AI setup key:
+
+$PUBLIC_KEY"
+  WHATSAPP_URL="https://wa.me/${WHATSAPP_CONTACT}?text=$(urlencode "$MESSAGE")"
+
+  cat <<'MSG'
+
+─────────────────────────────────────────────
+ACTION REQUIRED — takes 2 minutes
+
+Opening WhatsApp with your setup key already filled in.
+Just press Send to deliver it to your Ekagra AI contact.
+
+(Your key is also copied to your clipboard as a backup.)
+
+They will activate your account and reply when you're ready to continue.
+
+Once they confirm, press Enter to finish setup.
+─────────────────────────────────────────────
+MSG
+  # If open fails (no browser, headless, etc.) the clipboard copy above still
+  # lets the user paste manually, so don't let a failure stop the install.
+  open "$WHATSAPP_URL" >/dev/null 2>&1 || true
+else
+  cat <<'MSG'
 
 ─────────────────────────────────────────────
 ACTION REQUIRED — takes 2 minutes
@@ -129,6 +180,7 @@ They will activate your account and reply when you're ready to continue.
 Once they confirm, press Enter to finish setup.
 ─────────────────────────────────────────────
 MSG
+fi
 
 # Wait for the user to confirm their contact has activated the key.
 read -r -p ""
