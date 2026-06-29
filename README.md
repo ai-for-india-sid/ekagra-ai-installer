@@ -1,6 +1,6 @@
 # ekagra-ai-installer
 
-One-command setup scripts that let a **non-technical user** install the Ekagra AI
+One-command setup scripts that let a **user** install the Ekagra AI
 "chief-of-staff" from a private GitHub repo — **no GitHub account, no git
 knowledge required** on their end. After setup, their machine pulls fresh
 content automatically every morning at 11:30am.
@@ -8,6 +8,28 @@ content automatically every morning at 11:30am.
 This repo holds the installer. The actual product lives in
 [`ai-for-india-sid/ekagra-ai`](https://github.com/ai-for-india-sid/ekagra-ai)
 and is pulled onto the user's machine at install time.
+
+---
+
+## What is Ekagra?
+
+**Ekagra** is an AI "chief-of-staff" — a personal assistant that lives on the
+user's own machine. Rather than running as a hosted web app, its content is
+distributed as files in a private GitHub repo
+([`ai-for-india-sid/ekagra-ai`](https://github.com/ai-for-india-sid/ekagra-ai))
+and synced down to each user's computer.
+
+The model is deliberately simple:
+
+- **It lives locally.** The product is cloned into `~/Ek-ai` on the user's
+  machine, so it works offline and the user owns their copy.
+- **It stays fresh on its own.** A scheduled daily `git pull` at 11:30am keeps
+  each machine up to date with the latest content — the user never touches git.
+- **It's private by design.** Each user gets their own read-only SSH deploy key,
+  so access can be granted or revoked per person without affecting anyone else.
+
+This repo (`ekagra-ai-installer`) is just the **installer** that sets all of
+that up in one command. Ekagra itself is the content that gets pulled down.
 
 ---
 

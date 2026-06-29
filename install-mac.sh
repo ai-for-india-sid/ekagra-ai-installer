@@ -2,7 +2,7 @@
 #
 # install-mac.sh — One-time setup for Ekagra AI (macOS)
 #
-# What it does (for a non-technical user, one command):
+# What it does (for a user, one command):
 #   1. Makes sure git is available
 #   2. Generates a dedicated SSH key just for Ekagra (no GitHub account needed)
 #   3. Wires up an SSH config alias so git uses that key automatically
