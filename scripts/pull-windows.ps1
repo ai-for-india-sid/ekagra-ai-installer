@@ -45,6 +45,9 @@ Add-Content $logFile "───────────────────�
 Add-Content $logFile "[$timestamp] Starting pull"
 
 # Run the pull, capturing all output (stdout + stderr) into the log.
+# accept-new auto-trusts github.com's host key so an unattended scheduled pull
+# can never hang on an interactive prompt; a *changed* known key still blocks.
+$env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=accept-new"
 $output = git pull 2>&1
 Add-Content $logFile $output
 
