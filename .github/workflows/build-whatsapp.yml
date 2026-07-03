@@ -1,0 +1,99 @@
+name: Build WhatsApp MCP binary
+
+# Pre-builds the WhatsApp MCP bridge (Sealjay/mcp-whatsapp) so end users never
+# need Homebrew, Go, or a compiler. We build each macOS arch on its own native
+# runner (mattn/go-sqlite3 needs CGO, so cross-compiling is painful; native is
+# clean and, on arm64, Go ad-hoc-signs the binary — required by Gatekeeper).
+#
+# Output: a GitHub Release tagged `whatsapp-mcp-<sha>` with:
+#   whatsapp-mcp-darwin-arm64 / -amd64   (required)
+#   ffmpeg-darwin-arm64        / -amd64   (optional; voice-note transcode)
+# install-whatsapp.sh downloads these instead of building from source.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Sealjay/mcp-whatsapp commit SHA to build (must match config/mcp-catalog.json)"
+        required: true
+        default: "946c9db"
+
+permissions:
+  contents: write   # create the release + upload assets
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14   # Apple Silicon
+            arch: arm64
+            ffarch: arm64
+          - runner: macos-13   # Intel
+            arch: amd64
+            ffarch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout mcp-whatsapp at pinned SHA
+        uses: actions/checkout@v4
+        with:
+          repository: Sealjay/mcp-whatsapp
+          ref: ${{ inputs.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+
+      - name: Build (CGO on, native)
+        run: |
+          CGO_ENABLED=1 go build -o "whatsapp-mcp-darwin-${{ matrix.arch }}" ./cmd/whatsapp-mcp
+          file "whatsapp-mcp-darwin-${{ matrix.arch }}"
+          # Confirm it's ad-hoc signed on arm64 (Gatekeeper needs a signature).
+          codesign -dv "whatsapp-mcp-darwin-${{ matrix.arch }}" 2>&1 || true
+
+      - name: Fetch static ffmpeg (best-effort)
+        run: |
+          # Re-host a known static build so users don't depend on a third party
+          # at install time. Non-fatal: if this ever rots, the bridge still ships
+          # and voice-note transcoding just degrades.
+          if curl -fL --retry 3 -o "ffmpeg-darwin-${{ matrix.arch }}" \
+            "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-${{ matrix.ffarch }}"; then
+            chmod +x "ffmpeg-darwin-${{ matrix.arch }}"
+          else
+            echo "ffmpeg fetch failed — skipping (non-fatal)"
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-mcp-${{ matrix.arch }}
+          path: |
+            whatsapp-mcp-darwin-${{ matrix.arch }}
+            ffmpeg-darwin-${{ matrix.arch }}
+          if-no-files-found: warn
+          retention-days: 3
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: Publish / update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: whatsapp-mcp-${{ inputs.sha }}
+        run: |
+          ls -la dist
+          # Create the release once; if it already exists, just re-upload assets.
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+                 --title "WhatsApp MCP prebuilt (${{ inputs.sha }})" \
+                 --notes "Prebuilt Sealjay/mcp-whatsapp @ ${{ inputs.sha }} for macOS arm64 + amd64, plus static ffmpeg. Consumed by install-whatsapp.sh."
+          gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
