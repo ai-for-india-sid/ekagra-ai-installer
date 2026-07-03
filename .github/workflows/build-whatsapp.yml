@@ -35,11 +35,17 @@ jobs:
             ffarch: x64
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Checkout mcp-whatsapp at pinned SHA
+      - name: Checkout mcp-whatsapp (full history)
+        # fetch-depth: 0 pulls full history so a SHORT commit SHA (e.g. 946c9db)
+        # can be checked out below. actions/checkout's `ref` can't fetch a short
+        # SHA directly — it only takes a branch, tag, or full 40-char SHA.
         uses: actions/checkout@v4
         with:
           repository: Sealjay/mcp-whatsapp
-          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+
+      - name: Pin to requested commit
+        run: git checkout "${{ inputs.sha }}"
 
       - name: Set up Go
         uses: actions/setup-go@v5
