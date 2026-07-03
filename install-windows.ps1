@@ -99,7 +99,7 @@ Host $sshHostAlias
 # output suppressed, that prompt gets swallowed and the clone silently fails.
 # We pre-populate known_hosts with GitHub's keys via ssh-keyscan.
 $knownHosts = "$sshDir\known_hosts"
-$keyscan = (ssh-keyscan -t ed25519,rsa github.com 2>$null) | Where-Object { $_ -ne $null }
+$keyscan = (ssh-keyscan -t ed25519,ecdsa,rsa github.com 2>$null) | Where-Object { $_ -ne $null }
 if ($keyscan) {
     foreach ($line in $keyscan) {
         if (-not (Select-String -Path $knownHosts -SimpleMatch $line -Quiet -ErrorAction SilentlyContinue)) {
@@ -137,6 +137,10 @@ if (Test-Path "$installDir\.git") {
 } else {
     Write-Host "Downloading Ekagra AI..."
     $ErrorActionPreference = "Continue"   # let git fail without throwing
+    # accept-new auto-trusts github.com's host key on first connect instead of
+    # hanging on an invisible prompt (our output is silenced); a *changed* known
+    # key still blocks, so MITM protection stays.
+    $env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=accept-new"
     & git clone $repoUrl $installDir 2>$null | Out-Null
     $cloneExit = $LASTEXITCODE
     $ErrorActionPreference = "Stop"
@@ -177,6 +181,7 @@ $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Add-Content $logFile "─────────────────────"
 Add-Content $logFile "[$timestamp] Starting pull"
 
+$env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=accept-new"
 $output = git pull 2>&1
 Add-Content $logFile $output
 

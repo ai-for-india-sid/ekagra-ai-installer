@@ -99,7 +99,7 @@ fi
 # "Are you sure you want to continue connecting?". Because our clone runs with
 # output suppressed, that prompt gets swallowed and the clone silently fails.
 # We pre-populate known_hosts with GitHub's official published host keys.
-GITHUB_HOSTKEYS=$(ssh-keyscan -t ed25519,rsa github.com 2>/dev/null)
+GITHUB_HOSTKEYS=$(ssh-keyscan -t ed25519,ecdsa,rsa github.com 2>/dev/null)
 if [ -n "$GITHUB_HOSTKEYS" ]; then
   # Append only entries we don't already have (idempotent across re-runs).
   echo "$GITHUB_HOSTKEYS" | while read -r line; do
@@ -141,7 +141,11 @@ else
   echo "Downloading Ekagra AI..."
   # We deliberately don't use set -e here because we want to produce the
   # friendly error message below instead of a raw git failure.
-  if ! git clone "$REPO_URL" "$INSTALL_DIR" >/dev/null 2>&1; then
+  # StrictHostKeyChecking=accept-new: auto-trust github.com's host key on first
+  # connect instead of hanging on an interactive prompt (our output is silenced,
+  # so the prompt would be invisible and the clone would fail mysteriously). It
+  # still refuses if a *known* host key ever changes, so MITM protection stays.
+  if ! GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone "$REPO_URL" "$INSTALL_DIR" >/dev/null 2>&1; then
     echo ""
     echo "✗ Could not connect to the repository."
     echo "  Please confirm with your Ekagra AI contact that your key has been activated,"
@@ -176,7 +180,7 @@ cd "$REPO_DIR" || exit 1
 echo "─────────────────────" >> "$LOG_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull" >> "$LOG_FILE"
 
-git pull >> "$LOG_FILE" 2>&1
+GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git pull >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 0 ]; then

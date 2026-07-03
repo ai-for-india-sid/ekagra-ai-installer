@@ -37,7 +37,9 @@ echo "─────────────────────" >> "$LOG_
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull" >> "$LOG_FILE"
 
 # Run the pull, capturing all output (stdout + stderr) into the log.
-git pull >> "$LOG_FILE" 2>&1
+# accept-new auto-trusts github.com's host key so an unattended scheduled pull
+# can never hang on an interactive prompt; a *changed* known key still blocks.
+GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git pull >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
 # Record the outcome with a friendly, non-technical summary line.
