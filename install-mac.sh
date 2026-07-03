@@ -43,18 +43,25 @@ echo "This will take about a minute. Please don't close this window."
 echo ""
 
 # ─── 1. Check git ───────────────────────────────────────────────────────────
-if ! command -v git >/dev/null 2>&1; then
-  echo "Git is not installed. Installing now..."
+# On a fresh Mac, /usr/bin/git is a STUB that exists even when the Command Line
+# Tools (which contain the real git) are not installed. `command -v git` is
+# fooled by the stub and reports success, so we'd skip the install, march on to
+# the clone, and that first real git call would trigger the Command Line Tools
+# GUI ("Installing software") while the clone itself fails — surfacing as a
+# misleading "Could not connect to the repository". So test that git actually
+# RUNS, not just that the stub is present.
+if ! git --version >/dev/null 2>&1; then
+  echo "Setting up developer tools (this includes git). Installing now..."
   # xcode-select --install opens the macOS Command Line Tools installer GUI.
   # It returns immediately while the GUI runs, so we wait for the user.
-  xcode-select --install
+  xcode-select --install >/dev/null 2>&1 || true
   echo ""
-  echo "An installation window has opened."
-  echo "Once it finishes, come back here and press Enter to continue."
+  echo "A macOS window has opened ('Installing software'). This takes a few minutes."
+  echo "Please wait for it to finish, then come back here and press Enter to continue."
   read -r -p ""
-  # Re-check; if still missing we can't continue.
-  if ! command -v git >/dev/null 2>&1; then
-    fail "Git still isn't installed. Please finish the Command Line Tools installation and run this setup again."
+  # Re-check functionally; if git still doesn't run, the install isn't done yet.
+  if ! git --version >/dev/null 2>&1; then
+    fail "Developer tools aren't ready yet. Please let the 'Installing software' window finish, then run this setup again."
   fi
 fi
 ok "Git found"
