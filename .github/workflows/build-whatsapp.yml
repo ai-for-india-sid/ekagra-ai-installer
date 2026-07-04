@@ -1,16 +1,20 @@
 name: Build WhatsApp MCP binary
 
 # Pre-builds the WhatsApp MCP bridge (Sealjay/mcp-whatsapp) so end users never
-# need Homebrew, Go, or a compiler. Everything builds on ONE Apple Silicon
-# runner: arm64 natively, and amd64 by cross-compiling with CGO (Apple's clang
-# is a universal toolchain — `clang -arch x86_64` produces Intel binaries from
-# an arm64 host). We deliberately avoid the macos-13 (Intel) runners, which are
-# being deprecated and can sit queued for hours.
+# need Homebrew, Go, or a compiler.
+#
+# macOS: both arches build on ONE Apple Silicon runner — arm64 natively, amd64
+# cross-compiled with CGO via Apple's universal clang. (We avoid macos-13 Intel
+# runners, which are deprecated and can sit queued for hours.)
+# Windows: a native windows-latest runner builds the .exe (CGO via mingw gcc)
+# AND runs the `smoke` boot check on real Windows — so we never ship an .exe
+# that doesn't at least start. (QR pairing + Task Scheduler still need a human.)
 #
 # Output: a GitHub Release tagged `whatsapp-mcp-<sha>` with:
-#   whatsapp-mcp-darwin-arm64 / -amd64   (required)
-#   ffmpeg-darwin-arm64        / -amd64   (optional; voice-note transcode)
-# install-whatsapp.sh downloads these instead of building from source.
+#   whatsapp-mcp-darwin-arm64 / -amd64          (required, mac)
+#   whatsapp-mcp-windows-amd64.exe              (required, windows)
+#   ffmpeg-darwin-{arm64,amd64} / -windows-amd64.exe   (optional; voice notes)
+# install-whatsapp.sh / .ps1 download these instead of building from source.
 
 on:
   workflow_dispatch:
@@ -24,8 +28,8 @@ permissions:
   contents: write   # create the release + upload assets
 
 jobs:
-  build-and-release:
-    runs-on: macos-14   # Apple Silicon; builds both arches
+  build-mac:
+    runs-on: macos-14   # Apple Silicon; builds both mac arches, creates the release
     steps:
       - name: Checkout mcp-whatsapp (full history)
         # fetch-depth: 0 pulls full history so a SHORT commit SHA (e.g. 946c9db)
@@ -56,7 +60,7 @@ jobs:
             go build -o whatsapp-mcp-darwin-amd64 ./cmd/whatsapp-mcp
           file whatsapp-mcp-darwin-amd64
 
-      - name: Fetch static ffmpeg for both arches (best-effort)
+      - name: Fetch static ffmpeg for both mac arches (best-effort)
         run: |
           # Re-host a known static build so users don't depend on a third party
           # at install time. Non-fatal: if a source ever rots, the bridge still
@@ -65,19 +69,64 @@ jobs:
           fetch ffmpeg-darwin-arm64 "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-arm64"
           fetch ffmpeg-darwin-amd64 "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-x64"
 
-      - name: Publish / update release
+      - name: Publish / update release (mac assets)
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: whatsapp-mcp-${{ inputs.sha }}
         run: |
-          ls -la whatsapp-mcp-darwin-* ffmpeg-darwin-* 2>/dev/null || true
-          # Create the release once; if it already exists, just re-upload assets.
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
             || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
                  --title "WhatsApp MCP prebuilt (${{ inputs.sha }})" \
-                 --notes "Prebuilt Sealjay/mcp-whatsapp @ ${{ inputs.sha }} for macOS arm64 + amd64, plus static ffmpeg. Consumed by install-whatsapp.sh."
+                 --notes "Prebuilt Sealjay/mcp-whatsapp @ ${{ inputs.sha }} for macOS (arm64+amd64) and Windows (amd64), plus static ffmpeg. Consumed by install-whatsapp.sh / .ps1."
           gh release upload "$TAG" whatsapp-mcp-darwin-arm64 whatsapp-mcp-darwin-amd64 --repo "$GITHUB_REPOSITORY" --clobber
-          # ffmpeg is optional — upload only what actually downloaded.
           for f in ffmpeg-darwin-arm64 ffmpeg-darwin-amd64; do
             [ -f "$f" ] && gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber || true
           done
+
+  build-windows:
+    needs: build-mac   # serialize so the release already exists before we upload
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash   # Git Bash is on the image; keeps steps consistent with mac
+    steps:
+      - name: Checkout mcp-whatsapp (full history)
+        uses: actions/checkout@v4
+        with:
+          repository: Sealjay/mcp-whatsapp
+          fetch-depth: 0
+
+      - name: Pin to requested commit
+        run: git checkout "${{ inputs.sha }}"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+
+      - name: Build .exe (CGO via mingw gcc)
+        run: |
+          gcc --version
+          CGO_ENABLED=1 go build -o whatsapp-mcp-windows-amd64.exe ./cmd/whatsapp-mcp
+
+      - name: Boot check (smoke) on real Windows
+        # Proves the .exe actually starts on Windows: opens the store, builds the
+        # MCP server, registers tools — without connecting. If this fails we do
+        # NOT publish the .exe. (Pairing + Task Scheduler still need a human.)
+        run: |
+          mkdir -p store
+          ./whatsapp-mcp-windows-amd64.exe -store store smoke
+
+      - name: Fetch static ffmpeg for Windows (best-effort)
+        run: |
+          curl -fL --retry 3 -o ffmpeg-windows-amd64.exe \
+            "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-win32-x64" \
+            || echo "skip ffmpeg (non-fatal)"
+
+      - name: Upload Windows assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: whatsapp-mcp-${{ inputs.sha }}
+        run: |
+          gh release upload "$TAG" whatsapp-mcp-windows-amd64.exe --repo "$GITHUB_REPOSITORY" --clobber
+          [ -f ffmpeg-windows-amd64.exe ] && gh release upload "$TAG" ffmpeg-windows-amd64.exe --repo "$GITHUB_REPOSITORY" --clobber || true
