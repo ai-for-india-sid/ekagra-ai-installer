@@ -66,7 +66,7 @@ ekagra-ai-installer/
 |------|--------------|
 | `install-mac.sh` | One-time Mac setup: checks git, generates an SSH key, wires up SSH config, prompts the user to send their key to Ekagra, clones the repo into `~/Ek-ai`, installs the daily pull script, and registers a launchd job for 11:30am. |
 | `install-windows.ps1` | Same flow for Windows, using Task Scheduler instead of launchd. |
-| `scripts/pull-mac.sh` | Runs daily via launchd. Does a `git pull`, appends a timestamped line to `~/Ek-ai/logs/pull.log`, and rotates the log to its last 500 lines. No user interaction. |
+| `scripts/pull-mac.sh` | Runs daily via launchd. Does a `git pull`, appends a timestamped line to `~/Ek-ai/logs/pull.log`, rotates the log to its last 500 lines, and fires one fire-and-forget PostHog event (`framework_pulled`, or `framework_pull_failed`) so the fleet-update is visible remotely. No user interaction. |
 | `scripts/pull-windows.ps1` | Windows equivalent of the above. Writes to `%USERPROFILE%\Ek-ai\logs\pull.log`. |
 
 Both install scripts are **idempotent** — safe to re-run. They will not create a
@@ -255,7 +255,7 @@ Remove-Item -Force "$env:USERPROFILE\.ssh\ekagra_deploy", "$env:USERPROFILE\.ssh
 ## Design constraints (for maintainers)
 
 - **Pure bash and PowerShell only.** No Python, Node, Ruby, or package managers.
-- **Works offline** after the initial clone (the only network call is `git pull`).
+- **Works offline** after the initial clone. The daily pull's network calls are `git pull` and — on macOS — one fire-and-forget telemetry POST (`framework_pulled`); both fail silently when offline. (Windows pull has no telemetry yet.)
 - **Idempotent.** Re-running install never breaks anything or duplicates state.
 - **No raw git errors shown to users.** Every failure is wrapped in plain English.
 - **Per-user keys**, so compromise of one machine is revocable in isolation.

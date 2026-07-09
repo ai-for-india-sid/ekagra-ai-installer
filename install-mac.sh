@@ -187,6 +187,8 @@ cd "$REPO_DIR" || exit 1
 echo "─────────────────────" >> "$LOG_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull" >> "$LOG_FILE"
 
+BEFORE_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+
 GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git pull >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
@@ -194,6 +196,22 @@ if [ $EXIT_CODE -eq 0 ]; then
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull successful" >> "$LOG_FILE"
 else
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed with exit code $EXIT_CODE" >> "$LOG_FILE"
+fi
+
+# Fleet-update telemetry — kept in sync with scripts/pull-mac.sh (see that file
+# for the full rationale). Reuses the repo's telemetry hook; prepends Homebrew to
+# PATH so jq/curl resolve under launchd. Fire-and-forget, never affects the pull.
+TRACK="$REPO_DIR/hooks/track-event.sh"
+if [ -x "$TRACK" ]; then
+  AFTER_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  if [ $EXIT_CODE -eq 0 ]; then
+    UPDATED=false; [ "$BEFORE_SHA" != "$AFTER_SHA" ] && UPDATED=true
+    printf '{"updated":%s,"from_sha":"%s","to_sha":"%s"}' "$UPDATED" "$BEFORE_SHA" "$AFTER_SHA" \
+      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pulled >/dev/null 2>&1 || true
+  else
+    printf '{"exit_code":%s,"from_sha":"%s"}' "$EXIT_CODE" "$BEFORE_SHA" \
+      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pull_failed >/dev/null 2>&1 || true
+  fi
 fi
 
 tail -n "$MAX_LOG_LINES" "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
