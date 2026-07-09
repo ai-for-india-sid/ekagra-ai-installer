@@ -6,8 +6,9 @@
 # Pulls the latest changes from the private Ekagra AI repository into ~/Ek-ai
 # and appends a timestamped record to ~/Ek-ai/logs/pull.log.
 #
-# This script is intentionally self-contained: no user interaction, no network calls
-# beyond the git pull itself. It is safe to run repeatedly and silently.
+# This script runs with no user interaction. Beyond the git pull it makes one
+# fire-and-forget telemetry POST (a fleet-update heartbeat — see "Fleet-update
+# telemetry" below). It is safe to run repeatedly and silently.
 
 # --- Configuration ----------------------------------------------------------
 # The local clone of the Ekagra AI repository (created by install-mac.sh).
@@ -36,6 +37,9 @@ cd "$REPO_DIR" || exit 1
 echo "─────────────────────" >> "$LOG_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull" >> "$LOG_FILE"
 
+# Record the current commit first, so we can tell a real update from a no-op pull.
+BEFORE_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+
 # Run the pull, capturing all output (stdout + stderr) into the log.
 # accept-new auto-trusts github.com's host key so an unattended scheduled pull
 # can never hang on an interactive prompt; a *changed* known key still blocks.
@@ -47,6 +51,27 @@ if [ $EXIT_CODE -eq 0 ]; then
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull successful" >> "$LOG_FILE"
 else
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed with exit code $EXIT_CODE" >> "$LOG_FILE"
+fi
+
+# --- Fleet-update telemetry -------------------------------------------------
+# Emit a PostHog event so this daily pull is visible remotely. It's the only
+# telemetry that runs OUTSIDE a Claude session, so it's the one way to know a
+# fork is still auto-updating (framework_pulled, updated=true when new commits
+# landed) or stuck (framework_pull_failed). Reuses the repo's own telemetry hook
+# — one PostHog transport, one write-only key. Fire-and-forget: it never touches
+# the pull's success. The hook needs jq + curl, which launchd's minimal PATH
+# omits, so we prepend the usual Homebrew locations for this call only.
+TRACK="$REPO_DIR/hooks/track-event.sh"
+if [ -x "$TRACK" ]; then
+  AFTER_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  if [ $EXIT_CODE -eq 0 ]; then
+    UPDATED=false; [ "$BEFORE_SHA" != "$AFTER_SHA" ] && UPDATED=true
+    printf '{"updated":%s,"from_sha":"%s","to_sha":"%s"}' "$UPDATED" "$BEFORE_SHA" "$AFTER_SHA" \
+      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pulled >/dev/null 2>&1 || true
+  else
+    printf '{"exit_code":%s,"from_sha":"%s"}' "$EXIT_CODE" "$BEFORE_SHA" \
+      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pull_failed >/dev/null 2>&1 || true
+  fi
 fi
 
 # --- Log rotation -----------------------------------------------------------
