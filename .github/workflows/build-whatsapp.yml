@@ -23,7 +23,7 @@ on:
       sha:
         description: "Sealjay/mcp-whatsapp commit SHA to build (must match config/mcp-catalog.json)"
         required: true
-        default: "946c9db"
+        default: "878a0ed"
 
 permissions:
   contents: write   # create the release + upload assets
