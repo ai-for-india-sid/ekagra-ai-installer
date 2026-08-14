@@ -1,83 +1,64 @@
 #!/bin/bash
 #
-# pull-mac.sh — Daily update script for Ekagra AI (macOS)
+# pull-mac.sh - daily update launcher for Ekagra AI (macOS)
 #
-# Called automatically by launchd every day at 11:30am.
-# Pulls the latest changes from the private Ekagra AI repository into ~/Ek-ai
-# and appends a timestamped record to ~/Ek-ai/logs/pull.log.
+# Called by launchd (ai.ekagra.daily-pull) once a day and at login.
 #
-# This script runs with no user interaction. Beyond the git pull it makes one
-# fire-and-forget telemetry POST (a fleet-update heartbeat — see "Fleet-update
-# telemetry" below). It is safe to run repeatedly and silently.
+# Thin on purpose. The real update logic lives in the framework repo at
+# scripts/update.sh, which is TRACKED, so a fix to it reaches every machine
+# through the update itself. This file is installer-written and gitignored in
+# the repo, which means changing it costs a re-install on every machine. That
+# is a bill we pay once, here, and then stop paying.
 
-# --- Configuration ----------------------------------------------------------
-# The local clone of the Ekagra AI repository (created by install-mac.sh).
 REPO_DIR="$HOME/Ek-ai"
-# Where we keep a human-readable record of every pull attempt.
 LOG_FILE="$REPO_DIR/logs/pull.log"
-# Cap the log file at this many lines so it never grows without bound.
+UPDATER="$REPO_DIR/scripts/update.sh"
 MAX_LOG_LINES=500
 
-# --- Sanity checks ----------------------------------------------------------
-# If the repo directory is missing there is nothing we can do; log and exit.
 if [ ! -d "$REPO_DIR" ]; then
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ekagra AI directory not found ($REPO_DIR). Skipping pull." >> "$LOG_FILE" 2>/dev/null
   exit 1
 fi
 
-# Ensure the logs directory exists. The installer creates it, but if a user
-# (or cleanup tool) deletes it, our appends below would silently fail with no
-# record to diagnose from. Self-heal rather than trust prior state.
 mkdir -p "$(dirname "$LOG_FILE")"
-
-# Move into the repo so `git pull` operates on the right place.
 cd "$REPO_DIR" || exit 1
 
-# --- Perform the pull -------------------------------------------------------
-echo "─────────────────────" >> "$LOG_FILE"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull" >> "$LOG_FILE"
+# Normal path: hand off to the tracked updater.
+if [ -f "$UPDATER" ]; then
+  exec bash "$UPDATER" "$@"
+fi
 
-# Record the current commit first, so we can tell a real update from a no-op pull.
+# ── Bootstrap path ──────────────────────────────────────────────────────────
+# This clone predates scripts/update.sh. Fetch and reset inline, which does two
+# things at once: it unwedges a repo the old `git pull` updater left mid-merge
+# (a conflict there blocked every later run until somebody noticed), and it
+# brings scripts/update.sh in, so the tracked script takes over from the next
+# run. Deliberately minimal - it should be needed exactly once per machine.
+echo "─────────────────────" >> "$LOG_FILE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull (bootstrap: no scripts/update.sh yet)" >> "$LOG_FILE"
+
 BEFORE_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
-# Run the pull, capturing all output (stdout + stderr) into the log.
-# accept-new auto-trusts github.com's host key so an unattended scheduled pull
-# can never hang on an interactive prompt; a *changed* known key still blocks.
-GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git pull >> "$LOG_FILE" 2>&1
-EXIT_CODE=$?
+if ! GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git fetch origin >> "$LOG_FILE" 2>&1; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed: could not reach the remote" >> "$LOG_FILE"
+  exit 1
+fi
 
-# Record the outcome with a friendly, non-technical summary line.
-if [ $EXIT_CODE -eq 0 ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull successful" >> "$LOG_FILE"
+UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo origin/main)"
+
+# Save anything local before discarding it. The point of the reset is that it
+# always succeeds; the operator's work should still be recoverable afterwards.
+if [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)$(git log --oneline "$UPSTREAM..HEAD" 2>/dev/null)" ]; then
+  PATCH="$REPO_DIR/logs/drift-$(date '+%Y%m%d-%H%M%S').patch"
+  { git diff "$UPSTREAM...HEAD" 2>/dev/null; git diff HEAD 2>/dev/null; } > "$PATCH" 2>/dev/null
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Local changes to tracked files discarded, saved to $(basename "$PATCH")" >> "$LOG_FILE"
+fi
+
+if git reset --hard "$UPSTREAM" >> "$LOG_FILE" 2>&1; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull successful ($BEFORE_SHA -> $(git rev-parse HEAD))" >> "$LOG_FILE"
 else
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed with exit code $EXIT_CODE" >> "$LOG_FILE"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed: could not reset to $UPSTREAM" >> "$LOG_FILE"
 fi
 
-# --- Fleet-update telemetry -------------------------------------------------
-# Emit a PostHog event so this daily pull is visible remotely. It's the only
-# telemetry that runs OUTSIDE a Claude session, so it's the one way to know a
-# fork is still auto-updating (framework_pulled, updated=true when new commits
-# landed) or stuck (framework_pull_failed). Reuses the repo's own telemetry hook
-# — one PostHog transport, one write-only key. Fire-and-forget: it never touches
-# the pull's success. The hook needs jq + curl, which launchd's minimal PATH
-# omits, so we prepend the usual Homebrew locations for this call only.
-TRACK="$REPO_DIR/hooks/track-event.sh"
-if [ -x "$TRACK" ]; then
-  AFTER_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-  if [ $EXIT_CODE -eq 0 ]; then
-    UPDATED=false; [ "$BEFORE_SHA" != "$AFTER_SHA" ] && UPDATED=true
-    printf '{"updated":%s,"from_sha":"%s","to_sha":"%s"}' "$UPDATED" "$BEFORE_SHA" "$AFTER_SHA" \
-      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pulled >/dev/null 2>&1 || true
-  else
-    printf '{"exit_code":%s,"from_sha":"%s"}' "$EXIT_CODE" "$BEFORE_SHA" \
-      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pull_failed >/dev/null 2>&1 || true
-  fi
-fi
-
-# --- Log rotation -----------------------------------------------------------
-# Keep only the most recent MAX_LOG_LINES lines to prevent unbounded growth.
-# Write to a temp file first, then atomically replace — avoids truncating
-# the log if the machine loses power mid-write.
 tail -n "$MAX_LOG_LINES" "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
-
 exit 0

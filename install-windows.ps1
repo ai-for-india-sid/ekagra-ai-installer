@@ -182,13 +182,35 @@ Add-Content $logFile "───────────────────�
 Add-Content $logFile "[$timestamp] Starting pull"
 
 $env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=accept-new"
-$output = git pull 2>&1
-Add-Content $logFile $output
 
+# Fetch and reset, never merge. A merge needs somewhere to put a disagreement,
+# and any local edit to a tracked file gives it one - that is how a machine ends
+# up mid-merge with every later run blocked. Local edits to tracked files are
+# discarded; customization belongs in the gitignored override files.
+$fetchOutput = git fetch origin 2>&1
+Add-Content $logFile $fetchOutput
+if ($LASTEXITCODE -ne 0) {
+  Add-Content $logFile "[$timestamp] Pull failed: could not reach the remote"
+  exit 1
+}
+
+$upstream = git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $upstream) { $upstream = "origin/main" }
+
+$dirty = git status --porcelain --untracked-files=no 2>$null
+$ahead = git log --oneline "$upstream..HEAD" 2>$null
+if ($dirty -or $ahead) {
+  $patch = "$repoDir\logs\drift-$(Get-Date -Format 'yyyyMMdd-HHmmss').patch"
+  (git diff "$upstream...HEAD" 2>$null) + (git diff HEAD 2>$null) | Set-Content $patch
+  Add-Content $logFile "[$timestamp] Local changes to tracked files discarded, saved to $(Split-Path $patch -Leaf)"
+}
+
+$resetOutput = git reset --hard $upstream 2>&1
+Add-Content $logFile $resetOutput
 if ($LASTEXITCODE -eq 0) {
   Add-Content $logFile "[$timestamp] Pull successful"
 } else {
-  Add-Content $logFile "[$timestamp] Pull failed with exit code $LASTEXITCODE"
+  Add-Content $logFile "[$timestamp] Pull failed: could not reset to $upstream"
 }
 
 $lines = Get-Content $logFile
