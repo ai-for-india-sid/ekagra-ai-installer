@@ -175,45 +175,46 @@ PULL_SCRIPT="$INSTALL_DIR/scripts/pull-mac.sh"
 if [ -f "$SCRIPT_SOURCE" ]; then
   cp "$SCRIPT_SOURCE" "$PULL_SCRIPT"
 else
-  # Fallback: write the pull script directly. Kept in sync with scripts/pull-mac.sh.
+  # Fallback: write the launcher directly. Kept in sync with scripts/pull-mac.sh,
+  # which is short now because the update logic itself lives in the framework
+  # repo at scripts/update.sh (tracked, so it updates itself). Telemetry, drift
+  # capture and log rotation all live there.
   cat > "$PULL_SCRIPT" <<'PULL_EOF'
 #!/bin/bash
 REPO_DIR="$HOME/Ek-ai"
 LOG_FILE="$REPO_DIR/logs/pull.log"
+UPDATER="$REPO_DIR/scripts/update.sh"
 MAX_LOG_LINES=500
 
+[ -d "$REPO_DIR" ] || exit 1
+mkdir -p "$(dirname "$LOG_FILE")"
 cd "$REPO_DIR" || exit 1
 
+if [ -f "$UPDATER" ]; then
+  exec bash "$UPDATER" "$@"
+fi
+
+# Bootstrap: clone predates scripts/update.sh. One inline fetch and reset both
+# unwedges a repo the old merge-based updater left mid-merge and brings the
+# tracked updater in, which takes over from the next run.
 echo "─────────────────────" >> "$LOG_FILE"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull" >> "$LOG_FILE"
-
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting pull (bootstrap)" >> "$LOG_FILE"
 BEFORE_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-
-GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git pull >> "$LOG_FILE" 2>&1
-EXIT_CODE=$?
-
-if [ $EXIT_CODE -eq 0 ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull successful" >> "$LOG_FILE"
+if ! GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git fetch origin >> "$LOG_FILE" 2>&1; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed: could not reach the remote" >> "$LOG_FILE"
+  exit 1
+fi
+UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo origin/main)"
+if [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)$(git log --oneline "$UPSTREAM..HEAD" 2>/dev/null)" ]; then
+  PATCH="$REPO_DIR/logs/drift-$(date '+%Y%m%d-%H%M%S').patch"
+  { git diff "$UPSTREAM...HEAD" 2>/dev/null; git diff HEAD 2>/dev/null; } > "$PATCH" 2>/dev/null
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Local changes to tracked files discarded, saved to $(basename "$PATCH")" >> "$LOG_FILE"
+fi
+if git reset --hard "$UPSTREAM" >> "$LOG_FILE" 2>&1; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull successful ($BEFORE_SHA -> $(git rev-parse HEAD))" >> "$LOG_FILE"
 else
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed with exit code $EXIT_CODE" >> "$LOG_FILE"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pull failed: could not reset to $UPSTREAM" >> "$LOG_FILE"
 fi
-
-# Fleet-update telemetry — kept in sync with scripts/pull-mac.sh (see that file
-# for the full rationale). Reuses the repo's telemetry hook; prepends Homebrew to
-# PATH so jq/curl resolve under launchd. Fire-and-forget, never affects the pull.
-TRACK="$REPO_DIR/hooks/track-event.sh"
-if [ -x "$TRACK" ]; then
-  AFTER_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-  if [ $EXIT_CODE -eq 0 ]; then
-    UPDATED=false; [ "$BEFORE_SHA" != "$AFTER_SHA" ] && UPDATED=true
-    printf '{"updated":%s,"from_sha":"%s","to_sha":"%s"}' "$UPDATED" "$BEFORE_SHA" "$AFTER_SHA" \
-      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pulled >/dev/null 2>&1 || true
-  else
-    printf '{"exit_code":%s,"from_sha":"%s"}' "$EXIT_CODE" "$BEFORE_SHA" \
-      | PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" "$TRACK" custom framework_pull_failed >/dev/null 2>&1 || true
-  fi
-fi
-
 tail -n "$MAX_LOG_LINES" "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
 PULL_EOF
 fi
